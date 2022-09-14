@@ -112,7 +112,7 @@ function Start-MoveFiles() {
 
     if ( ( $SaveData ) -and ( Test-Path "$($Path)" ) ) {
       # Move-Item -Path "$($Path)" -Destination "$($Path).$($TS)" -Force
-      Compress-7z -I "$($Path)" -O "$($Path).$($TS).7z"
+      Compress-7z -I "$($Path)" -O "$($Path).$($TS).zip"
     }
 
     Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
@@ -166,7 +166,7 @@ function Compress-7z() {
     [string]$Out
   )
 
-  $7zParams = "a", "-t7z", "$($Out)", "$($In)"
+  $7zParams = "a", "-tzip", "$($Out)", "$($In)"
   & "$($PSScriptRoot)\_META\7z\7za.exe" @7zParams
 }
 
