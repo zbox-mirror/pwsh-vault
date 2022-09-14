@@ -23,19 +23,25 @@ Param(
   [Parameter(
     HelpMessage="Creation expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.)."
   )]
-  [Alias("CT", "CreationTime")]
+  [Alias("CT", "CreationTime", "Create")]
   [int]$P_CreationTime = 5270400,
 
   [Parameter(
     HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.)."
   )]
-  [Alias("WT", "LastWriteTime")]
+  [Alias("WT", "LastWriteTime", "Modify")]
   [int]$P_LastWriteTime = 5270400,
+
+  [Parameter(
+    HelpMessage=""
+  )]
+  [Alias("FZ", "FileSize", "Size")]
+  [int]$P_Size = 0,
 
   [Parameter(
     HelpMessage="File path with excluded data. E.g.: 'C:\Data\exclude.txt'."
   )]
-  [Alias("EF")]
+  [Alias("EF", "Exclude")]
   [string]$P_FileEXC = "$($PSScriptRoot)\vault.exclude.txt",
 
   [Parameter(
@@ -47,7 +53,7 @@ Param(
   [Parameter(
     HelpMessage="Save old files."
   )]
-  [Alias("SD", "SaveData")]
+  [Alias("SD", "SaveData", "Save")]
   [switch]$P_SaveData = $false
 )
 
@@ -59,8 +65,9 @@ $PathSRC = "$($P_PathSRC)"
 $PathDST = "$($P_PathDST)"
 $Date = Get-Date;
 $TS = $Date -Format "yyyy-MM-dd.HH-mm-ss"
-$LastWriteTime = $Date.AddSeconds(-$($P_LastWriteTime))
 $CreationTime = $Date.AddSeconds(-$($P_CreationTime))
+$LastWriteTime = $Date.AddSeconds(-$($P_LastWriteTime))
+$Size = $P_Size
 $ExcludeData = Get-Content "$($P_FileEXC)"
 
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -97,12 +104,13 @@ function Start-MoveFiles() {
   Write-VaultMsg -T -M "--- Moving Files..."
 
   $Items = Get-ChildItem -Path "$($PathSRC)" -Recurse -Exclude $ExcludeData
-    | Where-Object { ( -not $_.PSIsContainer ) -and ( $_.LastWriteTime -le "$($LastWriteTime)" ) -and ( $_.CreationTime -le "$($CreationTime)" ) }
+    | Where-Object { ( -not $_.PSIsContainer ) -and ( $_.LastWriteTime -lt $LastWriteTime ) -and ( $_.CreationTime -lt $CreationTime ) }
+    | Where-Object { ( $_.Length -gt $Size ) }
 
   if ( -not $Items ) { Write-VaultMsg -M "Files not found!" }
 
   foreach ( $Item in $Items ) {
-    if ( $Item.Length -eq 256 ) {
+    if ( $Item.FullName.Length -eq 256 ) {
       Write-VaultMsg -M "[ERROR] '$($Item)' has 256 characters in path! Skip..."
       continue
     }
@@ -132,7 +140,7 @@ function Start-RemoveDirs() {
   Write-VaultMsg -T -M "--- Removing Directories..."
 
   $Items = Get-ChildItem -Path "$($PathSRC)" -Recurse
-    | Where-Object { ( $_.PSIsContainer ) -and ( $_.LastWriteTime -le "$($LastWriteTime)" ) -and ( $_.CreationTime -le "$($CreationTime)" ) }
+    | Where-Object { ( $_.PSIsContainer ) -and ( $_.LastWriteTime -lt $LastWriteTime ) -and ( $_.CreationTime -lt $CreationTime ) }
 
   if ( -not $Items ) { Write-VaultMsg -M "Directories not found!" }
 
