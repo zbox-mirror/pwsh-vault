@@ -57,8 +57,8 @@ Param(
 
 $PathSRC = "$($P_PathSRC)"
 $PathDST = "$($P_PathDST)"
-$TS = Get-Date -Format "yyyy-MM-dd.HH-mm-ss"
 $Date = Get-Date;
+$TS = $Date -Format "yyyy-MM-dd.HH-mm-ss"
 $LastWriteTime = $Date.AddSeconds(-$($P_LastWriteTime))
 $CreationTime = $Date.AddSeconds(-$($P_CreationTime))
 $ExcludeData = Get-Content "$($P_FileEXC)"
