@@ -111,7 +111,8 @@ function Start-MoveFiles() {
     New-Item -Path "$($PathDST)" -ItemType "Directory" -Name "$($Dir.Remove(0, $PathSRC.Length))" -ErrorAction SilentlyContinue
 
     if ( ( $SaveData ) -and ( Test-Path "$($Path)" ) ) {
-      Move-Item -Path "$($Path)" -Destination "$($Path).$($TS)" -Force
+      # Move-Item -Path "$($Path)" -Destination "$($Path).$($TS)" -Force
+      Compress-7z -I "$($Path)" -O "$($Path).$($TS).7z"
     }
 
     Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
@@ -155,6 +156,18 @@ function Write-VaultMsg() {
   } else {
     Write-Host "$($Message)"
   }
+}
+
+function Compress-7z() {
+  param (
+    [Alias("I")]
+    [string]$In,
+    [Alias("O")]
+    [string]$Out
+  )
+
+  $7zParams = "a", "-t7z", "$($Out)", "$($In)"
+  & "$($PSScriptRoot)\_META\7z\7za.exe" @7zParams
 }
 
 # -------------------------------------------------------------------------------------------------------------------- #
