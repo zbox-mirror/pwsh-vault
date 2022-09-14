@@ -84,7 +84,7 @@ function Start-CreateDirs() {
     "$($PathDST)"
   )
 
-  foreach ($Dir in $Dirs) {
+  foreach ( $Dir in $Dirs ) {
     if ( -not ( Test-Path "$($Dir)" ) ) { New-Item -Path "$($Dir)" -ItemType "Directory" }
   }
 }
@@ -102,6 +102,11 @@ function Start-MoveFiles() {
   if ( -not $Items ) { Write-VaultMsg -M "Files not found!" }
 
   foreach ( $Item in $Items ) {
+    if ( $Item.Length -eq 256 ) {
+      Write-VaultMsg -M "[ERROR] '$($Item)' has 256 characters in path! Skip..."
+      continue
+    }
+
     $Dir = "$($Item.Directory.ToString())"
     $File = "$($Item.FullName.Remove(0, $PathSRC.Length))"
     $Path = "$($PathDST)$($File)"
