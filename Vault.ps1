@@ -166,7 +166,7 @@ function Start-RemoveDirs() {
 function Write-VaultMsg() {
   param (
     [Alias("M")]
-    [string]$Message,
+    [string]$Message = "",
 
     [Alias("T")]
     [string]$Type = "",
@@ -197,10 +197,10 @@ function Write-VaultMsg() {
 function Compress-7z() {
   param (
     [Alias("I")]
-    [string]$In,
+    [string]$In = "",
 
     [Alias("O")]
-    [string]$Out,
+    [string]$Out = "",
 
     [Alias("T")]
     [string]$Type = "7z"
