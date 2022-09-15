@@ -17,7 +17,7 @@ Param(
   [Parameter(
     HelpMessage="Destination path (Vault). E.g.: 'C:\Data\Vault'."
   )]
-  [Alias("DST", "Destination")]
+  [Alias("DST", "Destination", "Vault")]
   [string]$P_PathDST = "$($PSScriptRoot)\Vault",
 
   [Parameter(
@@ -27,22 +27,22 @@ Param(
   [int]$P_CreationTime = 5270400,
 
   [Parameter(
-    HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.)."
+    HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day ('5270400' sec.)."
   )]
   [Alias("WT", "LastWriteTime", "Modify")]
   [int]$P_LastWriteTime = 5270400,
 
   [Parameter(
-    HelpMessage=""
+    HelpMessage="File size check. E.g.: '5kb' / '12mb'. Default: '0kb'."
   )]
-  [Alias("FZ", "FileSize", "Size")]
-  [int]$P_Size = 0,
+  [Alias("FS", "FileSize", "Size")]
+  [string]$P_FileSize = "0kb",
 
   [Parameter(
-    HelpMessage="File path with excluded data. E.g.: 'C:\Data\exclude.txt'."
+    HelpMessage="File path with excluded data. E.g.: 'C:\Data\Exclude.txt'."
   )]
-  [Alias("EF", "Exclude")]
-  [string]$P_FileEXC = "$($PSScriptRoot)\vault.exclude.txt",
+  [Alias("FE", "Exclude")]
+  [string]$P_FileEXC = "$($PSScriptRoot)\Vault.Exclude.txt",
 
   [Parameter(
     HelpMessage="Logs directory path. E.g.: 'C:\Data\Logs'."
@@ -54,21 +54,24 @@ Param(
     HelpMessage="Save old files."
   )]
   [Alias("SD", "SaveData", "Save")]
-  [switch]$P_SaveData = $false
+  [switch]$P_SaveData = $false,
+
+  [Parameter(
+    HelpMessage="Demo mode."
+  )]
+  [Alias("DM", "DemoMode", "Demo")]
+  [switch]$P_DemoMode = $false
 )
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # CONFIGURATION.
 # -------------------------------------------------------------------------------------------------------------------- #
 
-$PathSRC = "$($P_PathSRC)"
-$PathDST = "$($P_PathDST)"
-$Date = Get-Date;
-$TS = $Date -Format "yyyy-MM-dd.HH-mm-ss"
-$CreationTime = $Date.AddSeconds(-$($P_CreationTime))
-$LastWriteTime = $Date.AddSeconds(-$($P_LastWriteTime))
-$Size = $P_Size
-$ExcludeData = Get-Content "$($P_FileEXC)"
+# Timestamp.
+$TS = Get-Date -Format "yyyy-MM-dd.HH-mm-ss"
+
+# New line separator.
+$NL = [Environment]::NewLine
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # INITIALIZATION.
@@ -87,8 +90,8 @@ function Start-BuildVault() {
 
 function Start-CreateDirs() {
   $Dirs = @(
-    "$($PathSRC)"
-    "$($PathDST)"
+    "$($P_PathSRC)"
+    "$($P_PathDST)"
   )
 
   foreach ( $Dir in $Dirs ) {
@@ -101,34 +104,45 @@ function Start-CreateDirs() {
 # -------------------------------------------------------------------------------------------------------------------- #
 
 function Start-MoveFiles() {
-  Write-VaultMsg -T -M "--- Moving Files..."
+  Write-VaultMsg -T "HL" -M "Moving Files..."
 
-  $Items = Get-ChildItem -Path "$($PathSRC)" -Recurse -Exclude $ExcludeData
-    | Where-Object { ( -not $_.PSIsContainer ) -and ( $_.LastWriteTime -lt $LastWriteTime ) -and ( $_.CreationTime -lt $CreationTime ) }
-    | Where-Object { ( $_.Length -gt $Size ) }
+  $Items = Get-ChildItem -Path "$($P_PathSRC)" -Recurse -Exclude (Get-Content "$($P_FileEXC)")
+    | Where-Object {
+        ( -not $_.PSIsContainer ) `
+        -and ( $_.CreationTime -le (Get-Date).AddSeconds(-$($P_CreationTime)) ) `
+        -and ( $_.LastWriteTime -le (Get-Date).AddSeconds(-$($P_LastWriteTime)) )
+      }
+    | Where-Object {
+        ( $_.Length -ge "$($P_FileSize)" )
+      }
 
-  if ( -not $Items ) { Write-VaultMsg -M "Files not found!" }
+  if ( -not $Items ) { Write-VaultMsg -T "Info" -M "Files not found!" }
 
   foreach ( $Item in $Items ) {
-    if ( $Item.FullName.Length -eq 256 ) {
-      Write-VaultMsg -M "[ERROR] '$($Item)' has 256 characters in path! Skip..."
+    if ( $Item.FullName.Length -ge 245 ) {
+      Write-VaultMsg -T "Warning" -M "'$($Item)' has over 250 characters in path! Skip..."
       continue
     }
 
     $Dir = "$($Item.Directory.ToString())"
-    $File = "$($Item.FullName.Remove(0, $PathSRC.Length))"
-    $Path = "$($PathDST)$($File)"
+    $File = "$($Item.FullName.Remove(0, $P_PathSRC.Length))"
+    $Path = "$($P_PathDST)$($File)"
 
-    Write-VaultMsg -M "[MOVE] '$($Item)' -> $($Path)"
+    New-Item -Path "$($P_PathDST)" -ItemType "Directory" `
+      -Name "$($Dir.Remove(0, $P_PathSRC.Length))" -ErrorAction "SilentlyContinue"
 
-    New-Item -Path "$($PathDST)" -ItemType "Directory" -Name "$($Dir.Remove(0, $PathSRC.Length))" -ErrorAction SilentlyContinue
-
-    if ( ( $SaveData ) -and ( Test-Path "$($Path)" ) ) {
-      # Move-Item -Path "$($Path)" -Destination "$($Path).$($TS)" -Force
-      Compress-7z -I "$($Path)" -O "$($Path).$($TS).zip"
+    if ( ( $P_SaveData ) -and ( Test-Path "$($Path)" ) ) {
+      Compress-7z -I "$($Path)" -O "$($Path).VAULT.$($TS).zip"
     }
 
-    Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+    if ( $P_DemoMode ) {
+      Write-VaultMsg -T "Warning" -M "Demo mode enabled! All source data will be save!"
+      Write-VaultMsg -M "[COPY] '$($Item)' -> '$($Path)'"
+      Copy-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+    } else {
+      Write-VaultMsg -M "[MOVE] '$($Item)' -> '$($Path)'"
+      Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+    }
   }
 }
 
@@ -137,17 +151,21 @@ function Start-MoveFiles() {
 # -------------------------------------------------------------------------------------------------------------------- #
 
 function Start-RemoveDirs() {
-  Write-VaultMsg -T -M "--- Removing Directories..."
+  Write-VaultMsg -T "HL" -M "Removing Directories..."
 
-  $Items = Get-ChildItem -Path "$($PathSRC)" -Recurse
-    | Where-Object { ( $_.PSIsContainer ) -and ( $_.LastWriteTime -lt $LastWriteTime ) -and ( $_.CreationTime -lt $CreationTime ) }
+  $Items = Get-ChildItem -Path "$($P_PathSRC)" -Recurse
+    | Where-Object {
+        ( $_.PSIsContainer ) `
+        -and ( $_.CreationTime -le (Get-Date).AddSeconds(-$($P_CreationTime)) ) `
+        -and ( $_.LastWriteTime -le (Get-Date).AddSeconds(-$($P_LastWriteTime)) ) `
+      }
 
-  if ( -not $Items ) { Write-VaultMsg -M "Directories not found!" }
+  if ( -not $Items ) { Write-Information -MessageData "Directories not found!" -InformationAction "Continue" }
 
   foreach ( $Item in $Items ) {
     if ( ( Get-ChildItem "$($Item)" | Measure-Object ).Count -eq 0 ) {
       Write-VaultMsg -M "[REMOVE] '$($Item)'"
-      Remove-Item -Path "$($Item)" -Force
+      if ( -not $P_DemoMode ) { Remove-Item -Path "$($Item)" -Force }
     }
   }
 }
@@ -161,13 +179,25 @@ function Write-VaultMsg() {
     [Alias("M")]
     [string]$Message,
     [Alias("T")]
-    [switch]$Title = $false
+    [string]$Type = ""
   )
 
-  if ( $Title ) {
-    Write-Host "$($NL)$($Message)" -ForegroundColor Blue
-  } else {
-    Write-Host "$($Message)"
+  switch ( $Type ) {
+    "HL" {
+      Write-Host "$($NL)--- $($Message)" -ForegroundColor Blue
+    }
+    "Info" {
+      Write-Information -MessageData "$($Message)" -InformationAction "Continue"
+    }
+    "Warning" {
+      Write-Warning -Message "$($Message)"
+    }
+    "Error" {
+      Write-Error -Message "$($Message)"
+    }
+    default {
+      Write-Host "$($Message)"
+    }
   }
 }
 
