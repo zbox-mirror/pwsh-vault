@@ -8,7 +8,7 @@
 #Requires -Version 7.2
 
 Param(
-  [Parameter(HelpMessage="Work mode.")]
+  [Parameter(HelpMessage="Script work mode. Default: 'MV'.")]
   [ValidateSet("CP", "MV", "RM")]
   [Alias("M", "Mode")]
   [string]$P_Mode = "MV",
@@ -89,21 +89,21 @@ function Start-CreateDirs() {
 function Start-MoveFiles() {
   Write-VaultMsg -T "HL" -M "Moving Files..."
 
-  $Items = Get-ChildItem -Path "$($P_PathSRC)" -Recurse -Exclude (Get-Content "$($P_FileEXC)")
+  $Items = Get-ChildItem -Path "$($P_PathSRC)" -Recurse -Exclude ( Get-Content "$($P_FileEXC)" )
     | Where-Object {
         ( -not $_.PSIsContainer ) `
-        -and ( $_.CreationTime -le (Get-Date).AddSeconds(-$($P_CreationTime)) ) `
-        -and ( $_.LastWriteTime -le (Get-Date).AddSeconds(-$($P_LastWriteTime)) )
+        -and ( $_.CreationTime -le ( Get-Date ).AddSeconds( -$($P_CreationTime) ) ) `
+        -and ( $_.LastWriteTime -le ( Get-Date ).AddSeconds( -$($P_LastWriteTime) ) )
       }
     | Where-Object {
         ( $_.Length -ge "$($P_FileSize)" )
       }
 
-  if ( -not $Items ) { Write-VaultMsg -T "Info" -M "Files not found!" }
+  if ( -not $Items ) { Write-VaultMsg -T "I" -M "Files not found!" }
 
   foreach ( $Item in $Items ) {
     if ( $Item.FullName.Length -ge 245 ) {
-      Write-VaultMsg -T "Warning" -M "'$($Item)' has over 250 characters in path! Skip..."
+      Write-VaultMsg -T "W" -M "'$($Item)' has over 250 characters in path! Skip..."
       continue
     }
 
@@ -145,11 +145,11 @@ function Start-RemoveDirs() {
   $Items = Get-ChildItem -Path "$($P_PathSRC)" -Recurse
     | Where-Object {
         ( $_.PSIsContainer ) `
-        -and ( $_.CreationTime -le (Get-Date).AddSeconds(-$($P_CreationTime)) ) `
-        -and ( $_.LastWriteTime -le (Get-Date).AddSeconds(-$($P_LastWriteTime)) ) `
+        -and ( $_.CreationTime -le ( Get-Date ).AddSeconds( -$($P_CreationTime) ) ) `
+        -and ( $_.LastWriteTime -le ( Get-Date ).AddSeconds( -$($P_LastWriteTime) ) ) `
       }
 
-  if ( -not $Items ) { Write-VaultMsg -T "Info" -M "Directories not found!" }
+  if ( -not $Items ) { Write-VaultMsg -T "I" -M "Directories not found!" }
 
   foreach ( $Item in $Items ) {
     if ( ( Get-ChildItem "$($Item)" | Measure-Object ).Count -eq 0 ) {
@@ -167,22 +167,26 @@ function Write-VaultMsg() {
   param (
     [Alias("M")]
     [string]$Message,
+
     [Alias("T")]
-    [string]$Type = ""
+    [string]$Type = "",
+
+    [Alias("A")]
+    [string]$Action = "Continue"
   )
 
   switch ( $Type ) {
     "HL" {
       Write-Host "$($NL)--- $($Message)" -ForegroundColor Blue
     }
-    "Info" {
-      Write-Information -MessageData "$($Message)" -InformationAction "Continue"
+    "I" {
+      Write-Information -MessageData "$($Message)" -InformationAction "$($Action)"
     }
-    "Warning" {
-      Write-Warning -Message "$($Message)"
+    "W" {
+      Write-Warning -Message "$($Message)" -WarningAction "$($Action)"
     }
-    "Error" {
-      Write-Error -Message "$($Message)"
+    "E" {
+      Write-Error -Message "$($Message)" -ErrorAction "$($Action)"
     }
     default {
       Write-Host "$($Message)"
