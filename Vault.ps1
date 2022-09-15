@@ -8,59 +8,42 @@
 #Requires -Version 7.2
 
 Param(
-  [Parameter(
-    HelpMessage="Source path. E.g.: 'C:\Data\Source'."
-  )]
+  [Parameter(HelpMessage="Work mode.")]
+  [ValidateSet("CP", "MV", "RM")]
+  [Alias("M", "Mode")]
+  [string]$P_Mode = "MV",
+
+  [Parameter(HelpMessage="Source path. E.g.: 'C:\Data\Source'.")]
   [Alias("SRC", "Source")]
   [string]$P_PathSRC = "$($PSScriptRoot)\Source",
 
-  [Parameter(
-    HelpMessage="Destination path (Vault). E.g.: 'C:\Data\Vault'."
-  )]
+  [Parameter(HelpMessage="Destination path (Vault). E.g.: 'C:\Data\Vault'.")]
   [Alias("DST", "Destination", "Vault")]
   [string]$P_PathDST = "$($PSScriptRoot)\Vault",
 
-  [Parameter(
-    HelpMessage="Creation expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.)."
-  )]
+  [Parameter(HelpMessage="Creation expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.).")]
   [Alias("CT", "CreationTime", "Create")]
   [int]$P_CreationTime = 5270400,
 
-  [Parameter(
-    HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day ('5270400' sec.)."
-  )]
+  [Parameter(HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day ('5270400' sec.).")]
   [Alias("WT", "LastWriteTime", "Modify")]
   [int]$P_LastWriteTime = 5270400,
 
-  [Parameter(
-    HelpMessage="File size check. E.g.: '5kb' / '12mb'. Default: '0kb'."
-  )]
+  [Parameter(HelpMessage="File size check. E.g.: '5kb' / '12mb'. Default: '0kb'.")]
   [Alias("FS", "FileSize", "Size")]
   [string]$P_FileSize = "0kb",
 
-  [Parameter(
-    HelpMessage="File path with excluded data. E.g.: 'C:\Data\Exclude.txt'."
-  )]
+  [Parameter(HelpMessage="File path with excluded data. E.g.: 'C:\Data\Exclude.txt'.")]
   [Alias("FE", "Exclude")]
   [string]$P_FileEXC = "$($PSScriptRoot)\Vault.Exclude.txt",
 
-  [Parameter(
-    HelpMessage="Logs directory path. E.g.: 'C:\Data\Logs'."
-  )]
+  [Parameter(HelpMessage="Logs directory path. E.g.: 'C:\Data\Logs'.")]
   [Alias("LOG", "Logs")]
   [string]$P_PathLogs = "$($PSScriptRoot)\Logs",
 
-  [Parameter(
-    HelpMessage="Save old files."
-  )]
-  [Alias("SD", "SaveData", "Save")]
-  [switch]$P_SaveData = $false,
-
-  [Parameter(
-    HelpMessage="Demo mode."
-  )]
-  [Alias("DM", "DemoMode", "Demo")]
-  [switch]$P_DemoMode = $false
+  [Parameter(HelpMessage="Save old files.")]
+  [Alias("OW", "Overwrite")]
+  [switch]$P_Overwrite = $false
 )
 
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -131,17 +114,23 @@ function Start-MoveFiles() {
     New-Item -Path "$($P_PathDST)" -ItemType "Directory" `
       -Name "$($Dir.Remove(0, $P_PathSRC.Length))" -ErrorAction "SilentlyContinue"
 
-    if ( ( $P_SaveData ) -and ( Test-Path "$($Path)" ) ) {
+    if ( ( -not $P_Overwrite ) -and ( Test-Path "$($Path)" ) ) {
       Compress-7z -I "$($Path)" -O "$($Path).VAULT.$($TS).zip"
     }
 
-    if ( $P_DemoMode ) {
-      Write-VaultMsg -T "Warning" -M "Demo mode enabled! All source data will be save!"
-      Write-VaultMsg -M "[COPY] '$($Item)' -> '$($Path)'"
-      Copy-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
-    } else {
-      Write-VaultMsg -M "[MOVE] '$($Item)' -> '$($Path)'"
-      Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+    switch ( $P_Mode ) {
+      "CP" {
+        Write-VaultMsg -M "[CP] '$($Item)' -> '$($Path)'"
+        Copy-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+      }
+      "MV" {
+        Write-VaultMsg -M "[MV] '$($Item)' -> '$($Path)'"
+        Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
+      }
+      "RM" {
+        Write-VaultMsg -M "[RM] '$($Item)'"
+        Remove-Item -Path "$($Item.FullName)" -Force
+      }
     }
   }
 }
@@ -160,12 +149,12 @@ function Start-RemoveDirs() {
         -and ( $_.LastWriteTime -le (Get-Date).AddSeconds(-$($P_LastWriteTime)) ) `
       }
 
-  if ( -not $Items ) { Write-Information -MessageData "Directories not found!" -InformationAction "Continue" }
+  if ( -not $Items ) { Write-VaultMsg -T "Info" -M "Directories not found!" }
 
   foreach ( $Item in $Items ) {
     if ( ( Get-ChildItem "$($Item)" | Measure-Object ).Count -eq 0 ) {
-      Write-VaultMsg -M "[REMOVE] '$($Item)'"
-      if ( -not $P_DemoMode ) { Remove-Item -Path "$($Item)" -Force }
+      Write-VaultMsg -M "[RM] '$($Item)'"
+      Remove-Item -Path "$($Item)" -Force
     }
   }
 }
