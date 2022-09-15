@@ -115,7 +115,7 @@ function Start-MoveFiles() {
       -Name "$($Dir.Remove(0, $P_PathSRC.Length))" -ErrorAction "SilentlyContinue"
 
     if ( ( -not $P_Overwrite ) -and ( Test-Path "$($Path)" ) ) {
-      Compress-7z -I "$($Path)" -O "$($Path).VAULT.$($TS).zip"
+      Compress-7z -T "zip" -I "$($Path)" -O "$($Path).VAULT.$($TS).zip"
     }
 
     switch ( $P_Mode ) {
@@ -198,11 +198,15 @@ function Compress-7z() {
   param (
     [Alias("I")]
     [string]$In,
+
     [Alias("O")]
-    [string]$Out
+    [string]$Out,
+
+    [Alias("T")]
+    [string]$Type = "7z"
   )
 
-  $7zParams = "a", "-tzip", "$($Out)", "$($In)"
+  $7zParams = "a", "-t$($Type)", "$($Out)", "$($In)"
   & "$($PSScriptRoot)\_META\7z\7za.exe" @7zParams
 }
 
