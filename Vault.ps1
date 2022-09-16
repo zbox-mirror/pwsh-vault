@@ -23,11 +23,11 @@ Param(
 
   [Parameter(HelpMessage="Creation expired time (in seconds). E.g.: '5270400'. Default: 61 day (5270400 sec.).")]
   [Alias("CT", "CreationTime", "Create")]
-  [int]$P_CreationTime = 5270400,
+  [long]$P_CreationTime = 5270400,
 
   [Parameter(HelpMessage="Last write expired time (in seconds). E.g.: '5270400'. Default: 61 day ('5270400' sec.).")]
   [Alias("WT", "LastWriteTime", "Modify")]
-  [int]$P_LastWriteTime = 5270400,
+  [long]$P_LastWriteTime = 5270400,
 
   [Parameter(HelpMessage="File size check. E.g.: '5kb' / '12mb'. Default: '0kb'.")]
   [Alias("FS", "FileSize", "Size")]
@@ -56,12 +56,14 @@ $TS = Get-Date -Format "yyyy-MM-dd.HH-mm-ss"
 # New line separator.
 $NL = [Environment]::NewLine
 
+# Load functions.
+. "$($PSScriptRoot)\Vault.Functions.ps1"
+
 # -------------------------------------------------------------------------------------------------------------------- #
 # INITIALIZATION.
 # -------------------------------------------------------------------------------------------------------------------- #
 
 function Start-BuildVault() {
-  # Run vault.
   Start-CreateDirs
   Start-MoveFiles
   Start-RemoveDirs
@@ -111,19 +113,18 @@ function Start-MoveFiles() {
     $File = "$($Item.FullName.Remove(0, $P_PathSRC.Length))"
     $Path = "$($P_PathDST)$($File)"
 
-    New-Item -Path "$($P_PathDST)" -ItemType "Directory" `
-      -Name "$($Dir.Remove(0, $P_PathSRC.Length))" -ErrorAction "SilentlyContinue"
-
-    if ( ( -not $P_Overwrite ) -and ( Test-Path "$($Path)" ) ) {
-      Compress-7z -T "zip" -I "$($Path)" -O "$($Path).VAULT.$($TS).zip"
-    }
-
     switch ( $P_Mode ) {
       "CP" {
+        New-SameDirectory -P "$($P_PathDST)" -N "$($Dir)"
+        Backup-SameFile -P "$($Path)" -N "$($Path).VAULT.$($TS).zip"
+
         Write-VaultMsg -M "[CP] '$($Item)' -> '$($Path)'"
         Copy-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
       }
       "MV" {
+        New-SameDirectory -P "$($P_PathDST)" -N "$($Dir)"
+        Backup-SameFile -P "$($Path)" -N "$($Path).VAULT.$($TS).zip"
+
         Write-VaultMsg -M "[MV] '$($Item)' -> '$($Path)'"
         Move-Item -Path "$($Item.FullName)" -Destination "$($Path)" -Force
       }
@@ -157,57 +158,6 @@ function Start-RemoveDirs() {
       Remove-Item -Path "$($Item)" -Force
     }
   }
-}
-
-# -------------------------------------------------------------------------------------------------------------------- #
-# ------------------------------------------------< COMMON FUNCTIONS >------------------------------------------------ #
-# -------------------------------------------------------------------------------------------------------------------- #
-
-function Write-VaultMsg() {
-  param (
-    [Alias("M")]
-    [string]$Message,
-
-    [Alias("T")]
-    [string]$Type,
-
-    [Alias("A")]
-    [string]$Action = "Continue"
-  )
-
-  switch ( $Type ) {
-    "HL" {
-      Write-Host "$($NL)--- $($Message)" -ForegroundColor Blue
-    }
-    "I" {
-      Write-Information -MessageData "$($Message)" -InformationAction "$($Action)"
-    }
-    "W" {
-      Write-Warning -Message "$($Message)" -WarningAction "$($Action)"
-    }
-    "E" {
-      Write-Error -Message "$($Message)" -ErrorAction "$($Action)"
-    }
-    default {
-      Write-Host "$($Message)"
-    }
-  }
-}
-
-function Compress-7z() {
-  param (
-    [Alias("I")]
-    [string]$In,
-
-    [Alias("O")]
-    [string]$Out,
-
-    [Alias("T")]
-    [string]$Type
-  )
-
-  $7zParams = "a", "-t$($Type)", "$($Out)", "$($In)"
-  & "$($PSScriptRoot)\_META\7z\7za.exe" @7zParams
 }
 
 # -------------------------------------------------------------------------------------------------------------------- #
